@@ -83,9 +83,14 @@ void GameOverState::render(float interpolation) {
     (void)interpolation;
     context_.graphics.clear(context_.resources.menu);
     context_.graphics.fill_rect({0.0F, 0.0F, 800.0F, 600.0F}, colors::overlay);
+    ui_.starfield(elapsed_);
     ui_.panel({175.0F, 55.0F, 450.0F, 500.0F});
 
     ui_.text("MISSION OVER", 400.0F, 95.0F, 5.0F, colors::white, TextAlign::center);
+    ui_.text("FLIGHT RECORDER / SIGNAL LOST", 400.0F, 151.0F, 1.0F,
+        colors::coral, TextAlign::center);
+    ui_.radar(115.0F, 300.0F, 40.0F, elapsed_, colors::coral);
+    ui_.radar(685.0F, 300.0F, 40.0F, elapsed_, colors::coral);
     ui_.text(
         "SCORE " + std::to_string(context_.last_score), 400.0F, 188.0F,
         2.5F, colors::cyan, TextAlign::center);
@@ -93,7 +98,7 @@ void GameOverState::render(float interpolation) {
         "BEST " + std::to_string(context_.high_score), 400.0F, 232.0F,
         2.0F, colors::magenta, TextAlign::center);
 
-    ui_.button(as_float_rect(hit_areas[0]), "RETRY", selected_ == 0);
+    ui_.button(as_float_rect(hit_areas[0]), "REDEPLOY", selected_ == 0);
     ui_.button(as_float_rect(hit_areas[1]), "MAIN MENU", selected_ == 1);
     ui_.button(as_float_rect(hit_areas[2]), "QUIT", selected_ == 2);
 }

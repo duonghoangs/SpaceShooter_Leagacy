@@ -25,6 +25,7 @@ private:
     SDL_Point mouse_{};
     std::size_t selected_ = 0;
     std::array<float, 3> option_focus_{1.0F, 0.0F, 0.0F};
+    std::array<float, ship_count> ship_focus_{1.0F, 0.0F, 0.0F};
     float elapsed_ = 0.0F;
 };
 

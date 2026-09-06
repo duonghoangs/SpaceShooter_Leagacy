@@ -41,12 +41,20 @@ public:
     void set_color(const Texture& texture, std::uint8_t value);
     void set_tint(const Texture& texture, SDL_Color color);
     void set_alpha(const Texture& texture, std::uint8_t value);
+    void set_blend_mode(const Texture& texture, SDL_BlendMode mode);
     void fill_rect(const SDL_FRect& rectangle, SDL_Color color);
     void fill_rects(std::span<const SDL_FRect> rectangles, SDL_Color color);
+    void draw_line(
+        SDL_FPoint start,
+        SDL_FPoint end,
+        SDL_Color color,
+        float thickness = 1.0F);
     void stroke_rect(
         const SDL_FRect& rectangle, SDL_Color color, float thickness = 1.0F);
     [[nodiscard]] bool save_screenshot(const std::filesystem::path& path);
     void present();
+    void asteroid(const Texture& texture, SDL_FPoint center, float radius,
+        float angle, std::uint32_t seed, std::uint8_t alpha = 255, bool meteor = false);
     void show_cursor(bool visible);
 
 private:

@@ -28,6 +28,7 @@ private:
     bool sound_enabled_ = true;
     int last_score_ = 0;
     int high_score_ = 0;
+    ShipType selected_ship_ = ShipType::laser;
     bool running_ = true;
     std::unique_ptr<State> state_;
 };

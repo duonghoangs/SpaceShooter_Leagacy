@@ -8,11 +8,64 @@
 #include <SDL2_image/SDL_image.h>
 #endif
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <string>
 
 namespace game {
+
+void Graphics::asteroid(const Texture& texture, SDL_FPoint center, float radius,
+    float angle, std::uint32_t seed, std::uint8_t alpha, bool meteor) {
+    if (!texture) {
+        return;
+    }
+    // Warp the original sprite, preserving its pixels, palette and crater detail.
+    std::array<SDL_Vertex, 16> vertices{};
+    std::array<int, 54> indices{};
+    const float radians = angle * 0.0174532925F;
+    const float cosine = std::cos(radians);
+    const float sine = std::sin(radians);
+    // Distinct silhouettes, not merely small variations of the same circle.
+    constexpr std::array<float, 5> widths{1.0F, 0.62F, 1.0F, 0.86F, 0.95F};
+    constexpr std::array<float, 5> heights{0.68F, 1.0F, 0.95F, 0.88F, 0.8F};
+    constexpr std::array<std::array<float, 4>, 5> profiles{{
+        {0.65F, 1.0F, 0.95F, 0.7F}, {0.8F, 1.0F, 0.9F, 0.55F},
+        {0.95F, 0.60F, 1.0F, 0.7F}, {0.5F, 0.75F, 1.0F, 0.95F},
+        {1.0F, 0.85F, 0.55F, 0.9F}}};
+    const auto variant = seed % widths.size();
+    const float width = meteor ? 1.0F : widths[variant];
+    const float height = meteor ? 0.85F : heights[variant];
+    for (int row = 0; row < 4; ++row) {
+        seed = seed * 1664525U + 1013904223U;
+        const float taper = 0.83F + static_cast<float>(seed >> 24) / 255.0F * 0.17F;
+        for (int column = 0; column < 4; ++column) {
+            const float u = static_cast<float>(column) / 3.0F;
+            const float v = static_cast<float>(row) / 3.0F;
+            const float profile = meteor ? 1.0F : profiles[variant][row];
+            const float shear = !meteor && variant == 3 ? (v - 0.5F) * radius * 0.3F : 0.0F;
+            const float x = (u * 2.0F - 1.0F) * radius * width * taper * profile + shear;
+            const float y = (v * 2.0F - 1.0F) * radius * height *
+                (meteor ? (0.45F + 0.32F * std::sin(u * 3.14159265F)) : 1.0F);
+            vertices[row * 4 + column] = {
+                {center.x + x * cosine - y * sine, center.y + x * sine + y * cosine},
+                {255, 255, 255, alpha}, {u, v}};
+        }
+    }
+    int index = 0;
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+            const int corner = row * 4 + column;
+            for (int vertex : {corner, corner + 1, corner + 4, corner + 1, corner + 5, corner + 4}) {
+                indices[index++] = vertex;
+            }
+        }
+    }
+    SDL_RenderGeometry(renderer_.get(), texture.get(), vertices.data(),
+        static_cast<int>(vertices.size()), indices.data(), static_cast<int>(indices.size()));
+}
+
 
 void WindowDeleter::operator()(SDL_Window* window) const noexcept {
     SDL_DestroyWindow(window);
@@ -123,6 +176,12 @@ void Graphics::set_alpha(const Texture& texture, std::uint8_t value) {
     }
 }
 
+void Graphics::set_blend_mode(const Texture& texture, SDL_BlendMode mode) {
+    if (texture) {
+        SDL_SetTextureBlendMode(texture.get(), mode);
+    }
+}
+
 void Graphics::fill_rect(const SDL_FRect& rectangle, SDL_Color color) {
     SDL_SetRenderDrawColor(renderer_.get(), color.r, color.g, color.b, color.a);
     SDL_RenderFillRectF(renderer_.get(), &rectangle);
@@ -136,6 +195,31 @@ void Graphics::fill_rects(
     SDL_SetRenderDrawColor(renderer_.get(), color.r, color.g, color.b, color.a);
     SDL_RenderFillRectsF(
         renderer_.get(), rectangles.data(), static_cast<int>(rectangles.size()));
+}
+
+void Graphics::draw_line(
+    SDL_FPoint start, SDL_FPoint end, SDL_Color color, float thickness) {
+    SDL_SetRenderDrawColor(renderer_.get(), color.r, color.g, color.b, color.a);
+    const float delta_x = end.x - start.x;
+    const float delta_y = end.y - start.y;
+    const float length = std::sqrt(delta_x * delta_x + delta_y * delta_y);
+    if (length <= 0.001F) {
+        return;
+    }
+
+    const float normal_x = -delta_y / length;
+    const float normal_y = delta_x / length;
+    const int line_count = std::max(1, static_cast<int>(std::ceil(thickness)));
+    const float center = static_cast<float>(line_count - 1) / 2.0F;
+    for (int line = 0; line < line_count; ++line) {
+        const float offset = static_cast<float>(line) - center;
+        SDL_RenderDrawLineF(
+            renderer_.get(),
+            start.x + normal_x * offset,
+            start.y + normal_y * offset,
+            end.x + normal_x * offset,
+            end.y + normal_y * offset);
+    }
 }
 
 void Graphics::stroke_rect(

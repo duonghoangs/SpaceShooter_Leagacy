@@ -36,6 +36,9 @@ class UiRenderer {
 public:
     explicit UiRenderer(Graphics& graphics) : graphics_(graphics) {}
 
+    void starfield(float time);
+    void radar(float x, float y, float radius, float time, SDL_Color color);
+
     void text(
         std::string_view value,
         float x,

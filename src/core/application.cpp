@@ -88,7 +88,14 @@ int Application::capture_ui(const std::filesystem::path& output_directory) {
     };
 
     bool success = capture(StateId::menu, "menu.bmp");
-    success = capture(StateId::playing, "gameplay.bmp") && success;
+    change_state(StateId::playing);
+    SDL_Event fire_event{};
+    fire_event.type = SDL_KEYDOWN;
+    fire_event.key.keysym.sym = SDLK_SPACE;
+    state_->handle_event(fire_event);
+    state_->update(config::fixed_timestep);
+    state_->render(1.0F);
+    success = graphics_.save_screenshot(output_directory / "gameplay.bmp") && success;
 
     SDL_Event pause_event{};
     pause_event.type = SDL_KEYDOWN;
@@ -99,6 +106,12 @@ int Application::capture_ui(const std::filesystem::path& output_directory) {
     }
     state_->render(1.0F);
     success = graphics_.save_screenshot(output_directory / "pause.bmp") && success;
+
+    // Exercise the timed encounter as part of the visual review captures.
+    change_state(StateId::playing);
+    static_cast<PlayingState&>(*state_).prepare_encounter_capture();
+    state_->render(1.0F);
+    success = graphics_.save_screenshot(output_directory / "meteor.bmp") && success;
 
     last_score_ = 1250;
     high_score_ = 2400;
@@ -116,11 +129,19 @@ bool Application::initialise() {
         graphics_.load_texture(assets_.image("space-enhanced-v4.png"));
     resources_.menu =
         graphics_.load_texture(assets_.image("menu-enhanced-v2.png"));
-    resources_.ship = graphics_.load_texture(assets_.image("blue-ship.png"));
+    resources_.ships[ship_index(ShipType::laser)] =
+        graphics_.load_texture(assets_.image("ship-laser.png"));
+    resources_.ships[ship_index(ShipType::twin)] =
+        graphics_.load_texture(assets_.image("ship-twin.png"));
+    resources_.ships[ship_index(ShipType::cannon)] =
+        graphics_.load_texture(assets_.image("ship-cannon.png"));
     resources_.asteroid = graphics_.load_texture(assets_.image("asteroid.png"));
     resources_.bullet = graphics_.load_texture(assets_.image("blue-bullet.png"));
 
-    if (!resources_.background || !resources_.menu || !resources_.ship ||
+    const bool ships_loaded = std::all_of(
+        resources_.ships.begin(), resources_.ships.end(),
+        [](const Graphics::Texture& ship) { return static_cast<bool>(ship); });
+    if (!resources_.background || !resources_.menu || !ships_loaded ||
         !resources_.asteroid || !resources_.bullet) {
         std::cerr << "Required image asset missing under " << assets_.root() << '\n';
         return false;
@@ -144,7 +165,8 @@ void Application::change_state(StateId next) {
     }
 
     Context context{
-        graphics_, audio_, resources_, sound_enabled_, last_score_, high_score_};
+        graphics_, audio_, resources_, sound_enabled_, last_score_, high_score_,
+        selected_ship_};
     if (next == StateId::menu) {
         state_ = std::make_unique<MenuState>(context);
     } else if (next == StateId::playing) {

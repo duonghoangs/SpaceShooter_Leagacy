@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <span>
 
 namespace game {
@@ -30,6 +31,53 @@ SDL_Color faded(SDL_Color color, float opacity) {
 }
 
 }  // namespace
+
+void UiRenderer::starfield(float time) {
+    // Independent seeded samples avoid lattice patterns and stay stable between frames.
+    const auto sample = [](std::uint32_t seed) {
+        seed ^= seed >> 16;
+        seed *= 0x7feb352dU;
+        seed ^= seed >> 15;
+        seed *= 0x846ca68bU;
+        seed ^= seed >> 16;
+        return static_cast<float>(seed >> 8) / 16777216.0F;
+    };
+    for (int i = 0; i < 100; ++i) {
+        const auto seed = static_cast<std::uint32_t>(i) * 6U + 1U;
+        const float depth = 1.0F + sample(seed + 2U) * 2.0F;
+        const float x = std::fmod(sample(seed) * 800.0F + time * depth * 2.0F, 800.0F);
+        const float y = std::fmod(sample(seed + 1U) * 600.0F + time * depth * 5.0F, 600.0F);
+        const float shimmer = 0.55F + 0.25F * std::sin(
+            time * (0.7F + sample(seed + 3U)) + sample(seed + 4U) * 6.2831853F);
+        const SDL_Color color = faded(i % 7 == 0 ? colors::amber : colors::cyan, shimmer);
+        graphics_.fill_rect({x, y, depth * 0.65F, depth * 0.65F}, color);
+    }
+    const float phase = std::fmod(time, 9.0F);
+    if (phase < 1.2F) {
+        const float x = 90.0F + phase * 510.0F;
+        const float y = 45.0F + phase * 160.0F;
+        graphics_.draw_line({x - 55.0F, y - 17.0F}, {x, y},
+            faded(colors::cyan, std::sin(phase / 1.2F * 3.14159265F) * 0.45F));
+    }
+}
+
+void UiRenderer::radar(float x, float y, float radius, float time, SDL_Color color) {
+    constexpr float tau = 6.2831853F;
+    for (int i = 0; i < 64; ++i) {
+        const float a = static_cast<float>(i) * tau / 64.0F;
+        const float b = static_cast<float>(i + 1) * tau / 64.0F;
+        graphics_.draw_line({x + std::cos(a) * radius, y + std::sin(a) * radius},
+            {x + std::cos(b) * radius, y + std::sin(b) * radius}, faded(color, 0.25F));
+    }
+    for (int i = 0; i < 8; ++i) {
+        const float angle = time * 0.8F - static_cast<float>(i) * 0.055F;
+        graphics_.draw_line({x, y},
+            {x + std::cos(angle) * radius, y + std::sin(angle) * radius},
+            faded(color, 0.24F * (1.0F - static_cast<float>(i) / 8.0F)));
+    }
+    graphics_.draw_line({x - radius - 4.0F, y}, {x - radius + 5.0F, y}, color);
+    graphics_.draw_line({x + radius - 5.0F, y}, {x + radius + 4.0F, y}, color);
+}
 
 float UiRenderer::text_width(std::string_view value, float scale) {
     return value.empty() ? 0.0F : (static_cast<float>(value.size()) * 6.0F - 1.0F) * scale;
@@ -74,7 +122,12 @@ void UiRenderer::panel(const SDL_FRect& rectangle, bool strong, float opacity) {
         rectangle,
         faded(strong ? colors::panel : colors::panel_soft, opacity));
     graphics_.stroke_rect(
-        rectangle, faded(colors::cyan, opacity), strong ? 2.0F : 1.0F);
+        rectangle, faded(colors::border, opacity), 1.0F);
+    const SDL_Color accent = faded(colors::cyan, opacity * (strong ? 0.9F : 0.5F));
+    for (float x : {rectangle.x, rectangle.x + rectangle.w - 14.0F}) {
+        graphics_.fill_rect({x, rectangle.y, 14.0F, 2.0F}, accent);
+        graphics_.fill_rect({x, rectangle.y + rectangle.h - 2.0F, 14.0F, 2.0F}, accent);
+    }
 }
 
 void UiRenderer::button(
@@ -180,6 +233,7 @@ UiRenderer::Glyph UiRenderer::glyph(char character) {
         case '-': return {0, 0, 0, 31, 0, 0, 0};
         case '/': return {1, 2, 2, 4, 8, 8, 16};
         case '.': return {0, 0, 0, 0, 0, 12, 12};
+        case '+': return {0, 4, 4, 31, 4, 4, 0};
         default: return {};
     }
 }
